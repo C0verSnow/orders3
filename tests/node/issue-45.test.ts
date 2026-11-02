@@ -183,13 +183,13 @@ test('the minute refresh yields before the daily opening slot instead of collidi
   scheduler.update({ enabled: true, cron: '0 13 * * *' }, 'opening');
   scheduler.start();
   try {
-    t.mock.timers.setTime(start + 60_000); t.mock.timers.tick(60_000); await flush();
+    t.mock.timers.tick(60_000); await flush();
     assert.equal(reads, 0, 'the 12:59:57 background refresh must yield to the 13:00 opening');
-    t.mock.timers.setTime(start + 63_000); await scheduler.tick();
+    t.mock.timers.tick(3_000); await flush();
     assert.equal(scheduler.snapshot().opening?.result, 'completed');
     assert.equal(posts, 1);
     const afterOpening = reads;
-    t.mock.timers.setTime(start + 120_000); t.mock.timers.tick(60_000); await flush();
+    t.mock.timers.tick(57_000); await flush();
     assert.ok(reads > afterOpening, 'background polling resumes after the opening slot');
     assert.equal(posts, 1);
   } finally { scheduler.stop(); }
