@@ -16,8 +16,8 @@ export class RequestLog {
       if (existsSync(path)) { bytes -= statSync(path).size; rmSync(path); }
     }
   }
-  write(direction: 'inbound' | 'outbound', method: string, url: URL, status: number, duration?: number, completed?: boolean) {
-    const line = JSON.stringify({ at: new Date().toISOString(), direction, method, host: url.hostname, path: url.pathname, status, success: completed ?? (status >= 200 && status < 400), outcome: completed === undefined ? 'http' : completed ? 'http-and-json' : 'http-or-body-failed', ...(duration === undefined ? {} : { duration_ms: duration }) }) + '\n';
+  write(direction: 'inbound' | 'outbound', method: string, url: URL, status: number, duration?: number, completed?: boolean, task?: string) {
+    const line = JSON.stringify({ at: new Date().toISOString(), direction, ...(task ? { task } : {}), method, host: url.hostname, path: url.pathname, status, success: completed ?? (status >= 200 && status < 400), outcome: completed === undefined ? 'http' : completed ? 'http-and-json' : 'http-or-body-failed', ...(duration === undefined ? {} : { duration_ms: duration }) }) + '\n';
     try {
       if (existsSync(this.path) && statSync(this.path).size + Buffer.byteLength(line) > 10_000_000) {
         rmSync(`${this.path}.4`, { force: true });

@@ -123,11 +123,17 @@ export class Scheduler {
     }
     } finally { this.ticking = false; }
   }
+  private openingReserved(now = Date.now()) {
+    const state = this.tasks.opening, until = state.next.getTime() - now;
+    // A :57 poll used to overlap a daily :00 opening on successive days.
+    // Yield before the slot, including its one-minute dispatch window; never replay it.
+    return state.value.enabled && until <= 60_000 && until > -60_000;
+  }
   start() {
     if (this.timer) return;
     this.stopped = false;
     this.timer = setInterval(() => { void this.tick().catch(() => {}); }, 1000);
-    this.gateTimer = setInterval(() => { if (!this.dashboard.gateBusy) void this.dashboard.refreshOrders().catch(() => {}); }, 60000);
+    this.gateTimer = setInterval(() => { if (!this.stopped && !this.ticking && !this.dashboard.gateBusy && !this.openingReserved()) void this.dashboard.refreshOrders().catch(() => {}); }, 60000);
   }
   stop() { this.stopped = true; clearInterval(this.timer); clearInterval(this.gateTimer); this.timer = undefined; this.gateTimer = undefined; }
 }
