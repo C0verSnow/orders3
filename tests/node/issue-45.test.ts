@@ -166,3 +166,31 @@ test('scheduled collision records the occupying task, does not replay the slot, 
   assert.equal(scheduler.snapshot().opening?.result, 'completed');
   assert.equal(posts, 1);
 });
+
+test('the minute refresh yields before the daily opening slot instead of colliding at :57', async t => {
+  const start = new Date('2026-10-31T12:58:57Z').getTime();
+  t.mock.timers.enable({ apis: ['Date', 'setInterval'], now: start });
+  let reads = 0, posts = 0;
+  const f = fixture(t, async (url, init) => {
+    if (init.method === 'POST') { posts++; return response({ code: 0, data: { id: '123' } }); }
+    reads++;
+    if (url.pathname.includes('/contracts/')) return response(rule);
+    return response(url.pathname.endsWith('/list') ? list([]) : []);
+  });
+  f.storage.saveSources([source]);
+  const scheduler = new Scheduler(f.config, f.dashboard);
+  scheduler.update({ enabled: false, cron: '* * * * *' });
+  scheduler.update({ enabled: true, cron: '0 13 * * *' }, 'opening');
+  scheduler.start();
+  try {
+    t.mock.timers.setTime(start + 60_000); t.mock.timers.tick(60_000); await flush();
+    assert.equal(reads, 0, 'the 12:59:57 background refresh must yield to the 13:00 opening');
+    t.mock.timers.setTime(start + 63_000); await scheduler.tick();
+    assert.equal(scheduler.snapshot().opening?.result, 'completed');
+    assert.equal(posts, 1);
+    const afterOpening = reads;
+    t.mock.timers.setTime(start + 120_000); t.mock.timers.tick(60_000); await flush();
+    assert.ok(reads > afterOpening, 'background polling resumes after the opening slot');
+    assert.equal(posts, 1);
+  } finally { scheduler.stop(); }
+});
